@@ -1,0 +1,14 @@
+     1                                  section .text
+     2 00000000 55                      	push rbp
+     3 00000001 4889E5                  	mov rbp, rsp
+     4                                  
+     5 00000004 5D                      	pop rbp
+     6                                  ; DEF_CMD (add, 0x03, 0)
+     7                                  
+     8                                  ; DEF_CMD (mul, 0x04, 0)
+     9                                  
+    10                                  ; DEF_CMD (sub, 0x05, 0)
+    11                                  
+    12                                  ; DEF_CMD (div, 0x09, 0)
+    13                                  
+    14                                  ; DEF_CMD (jmp, 0x0C, 2)
