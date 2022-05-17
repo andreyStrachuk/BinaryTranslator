@@ -197,12 +197,7 @@ int WritePush (BinCode *bin, BinCode *softBin) {
 
         fprintf (global, "push %d\n", (int)value);
 
-        if (value >= -128 && value < 128) {
-            *(bin->currentp++) = pushByte;
-        }
-        else {
-            *(bin->currentp++) = pushVal;
-        }
+        *(bin->currentp++) = pushVal;
 
         PutInt (bin, (int)value);
 
@@ -484,16 +479,36 @@ int WriteIn (BinCode *bin, BinCode *softBin) {
     *(bin->currentp++) = 0xBA;
     WriteAddrInFunc (bin);
 
-    // 2 00000000 55                      	push rbp
+    // 3 00000000 4831C0                  	xor rax, rax
+    *(bin->currentp++) = 0x48;
+    *(bin->currentp++) = 0x31;
+    *(bin->currentp++) = 0xC0;
+
+    // 3 00000000 55                      	push rbp
+    // 4 00000001 4889E5                  	mov rbp, rsp
     *(bin->currentp++) = 0x55;
+    *(bin->currentp++) = 0x48;
+    *(bin->currentp++) = 0x89;
+    *(bin->currentp++) = 0xE5;
+
+    // 3 00000000 4883E4F0                	and rsp,0xFFFFFFFFFFFFFFF0
+    *(bin->currentp++) = 0x48;
+    *(bin->currentp++) = 0x83;
+    *(bin->currentp++) = 0xE4;
+    *(bin->currentp++) = 0xF0;
 
     // 3 00000000 41FFD2                  	call r10
     *(bin->currentp++) = 0x41;
     *(bin->currentp++) = 0xFF;
     *(bin->currentp++) = 0xD2;
 
-    // 5 00000004 5D                      	pop rbp
+    // 6 00000004 4889EC                  	mov rsp, rbp
+    //  7 00000007 5D                      	pop rbp
+    *(bin->currentp++) = 0x48;
+    *(bin->currentp++) = 0x89;
+    *(bin->currentp++) = 0xEC;
     *(bin->currentp++) = 0x5D;
+
 
     //  2 00000000 50                      	push rax
     *(bin->currentp++) = 0x50;
@@ -503,7 +518,7 @@ int WriteIn (BinCode *bin, BinCode *softBin) {
     *(bin->currentp++) = 0x89;
     *(bin->currentp++) = 0xF0;
 
-    bin->size += 14;
+    bin->size += 27;
 
     softBin->currentp++;
 
@@ -532,9 +547,6 @@ int PutLong (BinCode *bin, int *addr) {
 
 int In () {
     int value = 0;
-
-    printf ("value pointer - %p\n", &value);
-
     scanf ("%d", &value);
 
     return value;
