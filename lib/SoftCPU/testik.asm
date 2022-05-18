@@ -1,18 +1,17 @@
-; push 1000
-; push 1000
-; push 1000
-; push 1000
-; push 1000
-
+in
+pop ax
 push 1
-push 3
+pop bx
 
 in
 in
 
+je : smth
+
+push 500
+push 345
 out
-out
-out
-out
+
+: smth
 
 hlt

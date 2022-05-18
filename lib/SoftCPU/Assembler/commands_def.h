@@ -108,6 +108,7 @@ DEF_CMD_(sin, 0x0B, 0,
 DEF_CMD_(jmp, 0x0C, 2,
 {
     int index = softCPU->ip;
+    printf ("%d - addr\n", *(u_int16_t *)(softCPU->machineCode + index));
     softCPU->ip = *(u_int16_t *)(softCPU->machineCode + index);
     continue;
 }, 

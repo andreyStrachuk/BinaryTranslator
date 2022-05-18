@@ -2,6 +2,11 @@
 
 FILE *global = fopen ("testik.asm", "w");
 
+#define NEWSHIFT softBin->currentp - softBin->buff
+
+#define PUTBYTE(arg)    *(bin->currentp++) = arg;   \
+                        bin->size++;                \
+
 
 const char pushByte = 0x6A;
 const char pushVal  = 0x68;
@@ -13,8 +18,10 @@ const char backupVal = 25;      // 0 < size < capacity - backupVal
                                                             code                        \
                                                         }                               \
 
-int BinaryTranslate (BinCode *bin, BinCode *softBin) {
+int BinaryTranslate (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
+
+    printf ("in tr!\n");
 
     int res = CheckSignature (softBin);
     if (res != OK) return WRONGSIGNATURE;
@@ -22,7 +29,8 @@ int BinaryTranslate (BinCode *bin, BinCode *softBin) {
     SaveRetAddr (bin, softBin);
 
     while (true) {
-        res = CheckBuffOverflow (bin, softBin);
+        res = CheckBuffOverflow (bin, softBin, label);
+        printf ("res - %d\n", res);
         if (res == NULLELEMENT) break;
 
         int typeOfCmd = 0x1F & *(softBin->currentp);
@@ -37,7 +45,21 @@ int BinaryTranslate (BinCode *bin, BinCode *softBin) {
     for (int i = 0; i < bin->size; i++) {
         printf ("%X ", bin->buff[i]);
     }
+    printf ("\n\n");
+
+    printf ("printing array-----------------------------\n");
+
+    for (int i = 0; i < label->size; i++) {
+        printf ("%2d ", label->bin[i]);
+    }
     printf ("\n");
+
+    for (int i = 0; i < label->size; i++) {
+        printf ("%2d ", label->softBin[i]);
+    }
+    printf ("\n");
+
+    printf ("end of printing array----------------------\n");
 
     return OK;
 }
@@ -49,6 +71,7 @@ int CheckSignature (BinCode *softBin) {
 
     if (softBin->buff[0] == 0x41 && softBin->buff[1] == 0x53) {
         softBin->currentp += 2;
+        softBin->buff += 2;
 
         return OK;
     }
@@ -89,24 +112,24 @@ int SoftBinCodeInit (BinCode *softBin, const char *fileName) {
     return OK;
 }
 
-int ArrangePushPop (BinCode *bin, BinCode *softBin) {
+int ArrangePushPop (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
     assert (softBin);
 
     int typeOfCmd = *softBin->currentp;
 
     if ((typeOfCmd & 0x1F) == PUSH) {
-        WritePush (bin, softBin);
+        WritePush (bin, softBin, label);
     }
 
     if ((typeOfCmd & 0x1F) == POP) {
-        WritePop (bin, softBin);
+        WritePop (bin, softBin, label);
     }
 
     return OK;
 }
 
-int WritePush (BinCode *bin, BinCode *softBin) {
+int WritePush (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
     assert (softBin);    
 
@@ -120,20 +143,17 @@ int WritePush (BinCode *bin, BinCode *softBin) {
 
         fprintf (global, "push rax\nmov rax, %d\npush [rax]\npop rax", shift);
 
-        *bin->currentp = 0x50;          // push [val]
-        *(bin->currentp + 1) = 0xB8;
-        bin->currentp += 2;
+        PUTBYTE (0x50);         // push [val]
+        PUTBYTE (0xB8);
 
         PutInt (bin, shift);
 
-        *(bin->currentp) = 0xFF;
-        *(bin->currentp + 1) = 0x30;
-        bin->currentp += 2;
+        PUTBYTE (0xFF);
+        PUTBYTE (0x30);
 
-        *(bin->currentp) = 0x50;
-        bin->currentp++;
+        PUTBYTE (0x50);
 
-        bin->size += 7;
+        LabelPushBack (label, bin->size, NEWSHIFT);
 
         return OK;
     }
@@ -143,10 +163,10 @@ int WritePush (BinCode *bin, BinCode *softBin) {
 
         fprintf (global, "push [%d - reg num]\n", regNum);
 
-        *bin->currentp       = 0xFF;                // push [reg_name]
-        *(bin->currentp + 1) = 0x30 + regNum;
+        PUTBYTE (0xFF);                // push [reg_name]
+        PUTBYTE (0x30 + regNum);
 
-        bin->size += 2;    
+        LabelPushBack (label, bin->size, NEWSHIFT);
 
         return OK;
     }
@@ -159,19 +179,12 @@ int WritePush (BinCode *bin, BinCode *softBin) {
 
         fprintf (global, "push [%d -reg + %d]\n", regNum, shift);
 
-        *bin->currentp = 0xFF;
-        if (shift >= -128 && shift < 128) {
-            *(bin->currentp + 1) = 0x70 + regNum;
-        }
-        else {
-            *(bin->currentp + 1) = 0xB0 + regNum;
-        }
-
-        bin->currentp += 2;
+        PUTBYTE (0xFF);
+        PUTBYTE (0xB0 + regNum);
 
         PutInt (bin, shift);
 
-        bin->size += 6;
+        LabelPushBack (label, bin->size, NEWSHIFT);
 
         return OK;
     }
@@ -183,9 +196,9 @@ int WritePush (BinCode *bin, BinCode *softBin) {
 
         fprintf (global, "push %d - reg\n", regNum);
 
-        *bin->currentp = 0x50 + regNum;
-        bin->currentp++;
-        bin->size++;
+        PUTBYTE (0x50 + regNum);
+
+        LabelPushBack (label, bin->size, NEWSHIFT);
 
         return OK;
     }
@@ -197,11 +210,11 @@ int WritePush (BinCode *bin, BinCode *softBin) {
 
         fprintf (global, "push %d\n", (int)value);
 
-        *(bin->currentp++) = pushVal;
+        PUTBYTE (pushVal);
 
         PutInt (bin, (int)value);
 
-        bin->size += 5;
+        LabelPushBack (label, bin->size, NEWSHIFT);
 
         return OK;
     }
@@ -209,7 +222,7 @@ int WritePush (BinCode *bin, BinCode *softBin) {
     return WRONGINSTRUCTION;
 }
 
-int WritePop (BinCode *bin, BinCode *softBin) {
+int WritePop (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
     assert (softBin);
 
@@ -221,51 +234,48 @@ int WritePop (BinCode *bin, BinCode *softBin) {
         char regNum = *(softBin->currentp++);
         printf ("reg num - %X\n", regNum);
 
-        *(bin->currentp++) = 0x58 + regNum;
+        PUTBYTE (0x58 + regNum);
 
-        bin->size++;
+        LabelPushBack (label, bin->size, NEWSHIFT);
     }
 
     return OK;
 }
 
-int WriteInc (BinCode *bin, BinCode *softBin) {
+int WriteInc (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
     assert (softBin);
 
     softBin->currentp++;
 
-    printf ("@@@@@\n");
     // 3 00000000 4989C5                  	mov r13, rax
     // 4 00000003 58                      	pop rax
     // 5 00000004 48FFC0                  	inc rax
     // 6 00000007 50                      	push rax
     // 7 00000008 4C89E8                  	mov rax, r13
 
-    *(bin->currentp++) = 0x49;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xC5;
+    PUTBYTE (0x49); PUTBYTE (0x89); PUTBYTE (0xC5);
 
-    *(bin->currentp++) = 0x58;
+    PUTBYTE (0x58);
 
-    *(bin->currentp++) = 0x48;
-    *(bin->currentp++) = 0xFF;
-    *(bin->currentp++) = 0xC0;
+    PUTBYTE (0x48); PUTBYTE (0xFF); PUTBYTE (0xC0);
 
-    *(bin->currentp++) = 0x50;
+    PUTBYTE (0x50);
 
-    *(bin->currentp++) = 0x4C;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xE8;
+    PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xE8);
 
-    bin->size += 11;
+    LabelPushBack (label, bin->size, NEWSHIFT);
 
     return OK;
 }
 
-int WriteDec (BinCode *bin, BinCode *softBin) {
+
+
+int WriteDec (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
     assert (softBin);
+
+    softBin->currentp++;
 
     //  3 00000000 4989C5                  	mov r13, rax
     //  4 00000003 58                      	pop rax
@@ -273,34 +283,28 @@ int WriteDec (BinCode *bin, BinCode *softBin) {
     //  6 00000007 50                      	push rax
     //  7 00000008 4C89E8                  	mov rax, r13
 
-    *(bin->currentp++) = 0x49;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xC5;
+    PUTBYTE (0x49); PUTBYTE (0x89); PUTBYTE (0xC5);
 
-    *(bin->currentp++) = 0x58;
+    PUTBYTE (0x58);
 
-    *(bin->currentp++) = 0x48;
-    *(bin->currentp++) = 0xFF;
-    *(bin->currentp++) = 0xC8;
+    PUTBYTE (0x48); PUTBYTE (0xFF); PUTBYTE (0xC8);
 
-    *(bin->currentp++) = 0x50;
+    PUTBYTE (0x50);
 
-    *(bin->currentp++) = 0x4C;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xE8;
+    PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xE8);
 
-    bin->size += 11;
-
-    softBin->currentp++;
+    LabelPushBack (label, bin->size, NEWSHIFT);
 
     printf ("DONE\n");
 
     return OK;
 }
 
-int WriteAdd (BinCode *bin, BinCode *softBin) {
+int WriteAdd (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
     assert (softBin);
+
+    softBin->currentp++;
 
     //  3 00000000 4989C5                  	mov r13, rax
     //  4 00000003 4989DC                  	mov r12, rbx
@@ -311,35 +315,59 @@ int WriteAdd (BinCode *bin, BinCode *softBin) {
     //  9 0000000C 4C89E8                  	mov rax, r13
     // 10 0000000F 4C89E3                  	mov rbx, r12
 
-    *(bin->currentp++) = 0x49;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xC5;
+    PUTBYTE (0x49); PUTBYTE (0x89); PUTBYTE (0xC5);
 
-    *(bin->currentp++) = 0x49;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xDC;
+    PUTBYTE (0x49); PUTBYTE (0x89); PUTBYTE (0xDC);
 
-    *(bin->currentp++) = 0x58;
+    PUTBYTE (0x58);
 
-    *(bin->currentp++) = 0x5B;
+    PUTBYTE (0x5B);
 
-    *(bin->currentp++) = 0x48;
-    *(bin->currentp++) = 0x01;
-    *(bin->currentp++) = 0xD8;
+    PUTBYTE (0x48); PUTBYTE (0x01); PUTBYTE (0xD8);
 
-    *(bin->currentp++) = 0x50;
+    PUTBYTE (0x50);
 
-    *(bin->currentp++) = 0x4C;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xE8;
+    PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xE8);
 
-    *(bin->currentp++) = 0x4C;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xE3;
+    PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xE3);
 
-    bin->size += 18;
+    LabelPushBack (label, bin->size, NEWSHIFT);
+
+    return OK;
+}
+
+int WriteSub (BinCode *bin, BinCode *softBin, Label *label) {
+    assert (bin);
+    assert (softBin);
 
     softBin->currentp++;
+
+    //  3 00000000 4989C5                  	mov r13, rax
+    //  4 00000003 4989DC                  	mov r12, rbx
+    //  5 00000006 58                      	pop rax
+    //  6 00000007 5B                      	pop rbx
+    //  7 00000008 4829D8                  	sub rax, rbx
+    //  8 0000000B 50                      	push rax
+    //  9 0000000C 4C89E8                  	mov rax, r13
+    // 10 0000000F 4C89E3                  	mov rbx, r12
+
+    PUTBYTE (0x49); PUTBYTE (0x89); PUTBYTE (0xC5);
+
+    PUTBYTE (0x49); PUTBYTE (0x89); PUTBYTE (0xDC);
+
+    PUTBYTE (0x58);
+
+    PUTBYTE (0x5B);
+
+    PUTBYTE (0x48); PUTBYTE (0x29); PUTBYTE (0xD8);
+
+    PUTBYTE (0x50);
+
+    PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xE8);
+
+    PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xE3);
+
+    LabelPushBack (label, bin->size, NEWSHIFT);
 
     return OK;
 }
@@ -350,10 +378,8 @@ int SaveRetAddr (BinCode *bin, BinCode *softBin) {
 
     // 3 00000000 415F                    	pop r15
 
-    *(bin->currentp++) = 0x41;
-    *(bin->currentp++) = 0x5F;
-
-    bin->size += 2;
+    PUTBYTE (0x41);
+    PUTBYTE (0x5F);
 
     return OK;
 }
@@ -364,39 +390,34 @@ int RestoreRetAddr (BinCode *bin, BinCode *softBin) {
 
     // 3 00000000 4157                    	push r15
 
-    *(bin->currentp++) = 0x41;
-    *(bin->currentp++) = 0x57;
-
-    bin->size += 2;
+    PUTBYTE (0x41);
+    PUTBYTE (0x57);
 
     return OK;
 }
 
-int WriteOut (BinCode *bin, BinCode *softBin) {
+int WriteOut (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
     assert (softBin);
 
-    *(bin->currentp++) = 0x5F;      // pop rdi
-    bin->size++;
+    softBin->currentp++;
+
+    PUTBYTE (0x5F);        // pop rdi
 
     // 3 00000000 41BAval0000            	mov r10, val
 
-    *(bin->currentp++) = 0x41;
-    *(bin->currentp++) = 0xBA;
-
-    bin->size += 2;
+    PUTBYTE (0x41);
+    PUTBYTE (0xBA);
 
     WriteAddrOutFunc (bin);
 
     // 3 00000000 41FFD2                  	call r10
 
-    *(bin->currentp++) = 0x41;
-    *(bin->currentp++) = 0xFF;
-    *(bin->currentp++) = 0xD2;
+    PUTBYTE (0x41);
+    PUTBYTE (0xFF);
+    PUTBYTE (0xD2);
 
-    bin->size += 3;
-
-    softBin->currentp++;
+    LabelPushBack (label, bin->size, NEWSHIFT);
 
     return OK;
 }
@@ -409,12 +430,10 @@ int WriteAddrOutFunc (BinCode *bin) {
     unsigned long addr = (unsigned long)Out;
 
     for (int i = 0; i < 3; i++) {
-        *(bin->currentp++) = *((unsigned char *)&addr + i);
+        PUTBYTE (*((unsigned char *)&addr + i));
     }
 
-    *(bin->currentp++) = 0x00;
-
-    bin->size += 4;
+    PUTBYTE (0x00);
 
     return OK;
 }
@@ -426,101 +445,120 @@ int WriteAddrInFunc (BinCode *bin) {
 
     unsigned long addr = (unsigned long)In;
 
-    printf ("pointer - %p\n", (void *)In);
     for (int i = 0; i < 3; i++) {
-        *(bin->currentp++) = *((unsigned char *)&addr + i);
-        printf ("%X ", *((unsigned char *)&addr + i));
+        PUTBYTE (*((unsigned char *)&addr + i));
     }
-    printf ("\n");
 
-    *(bin->currentp++) = 0x00;
-
-    bin->size += 4;
+    PUTBYTE (0x00);
 
     return OK;
 }
 
-int WriteRet (BinCode *bin, BinCode *softBin) {
+int WriteRet (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
     assert (softBin);
 
-    *(bin->currentp++) = 0xC3;
-    bin->size++;
-
     softBin->currentp++;
+
+    PUTBYTE (0xC3);
+
+    LabelPushBack (label, bin->size, NEWSHIFT);
 
     return OK;
 }
 
-int WriteHlt (BinCode *bin, BinCode *softBin) {
+int WriteHlt (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
+
+    softBin->currentp++;
 
     RestoreRetAddr (bin, softBin);
 
-    *(bin->currentp++) = 0xC3;
-    bin->size++;
+    PUTBYTE (0xC3);
 
-    softBin->currentp++;
+    LabelPushBack (label, bin->size, NEWSHIFT);
 
     return OK;
 }
 
-int WriteIn (BinCode *bin, BinCode *softBin) {
+int WriteIn (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
     assert (softBin);
 
+    softBin->currentp++;
+
     // 2 00000000 4989C7                  	mov r14, rax
-    *(bin->currentp++) = 0x49;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xC6;
+    PUTBYTE (0x49); PUTBYTE (0x89); PUTBYTE (0xC6);
 
     // 3 00000000 41BAval0000            	mov r10, val
-    *(bin->currentp++) = 0x41;
-    *(bin->currentp++) = 0xBA;
+    PUTBYTE (0x41); PUTBYTE (0xBA);
     WriteAddrInFunc (bin);
 
     // 3 00000000 4831C0                  	xor rax, rax
-    *(bin->currentp++) = 0x48;
-    *(bin->currentp++) = 0x31;
-    *(bin->currentp++) = 0xC0;
+    PUTBYTE (0x48); PUTBYTE (0x31); PUTBYTE (0xC0);
 
     // 3 00000000 55                      	push rbp
     // 4 00000001 4889E5                  	mov rbp, rsp
-    *(bin->currentp++) = 0x55;
-    *(bin->currentp++) = 0x48;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xE5;
+    PUTBYTE (0x55);
+    PUTBYTE (0x48); PUTBYTE (0x89); PUTBYTE (0xE5);
 
     // 3 00000000 4883E4F0                	and rsp,0xFFFFFFFFFFFFFFF0
-    *(bin->currentp++) = 0x48;
-    *(bin->currentp++) = 0x83;
-    *(bin->currentp++) = 0xE4;
-    *(bin->currentp++) = 0xF0;
+    PUTBYTE (0x48); PUTBYTE (0x83); PUTBYTE (0xE4); PUTBYTE (0xF0);
 
     // 3 00000000 41FFD2                  	call r10
-    *(bin->currentp++) = 0x41;
-    *(bin->currentp++) = 0xFF;
-    *(bin->currentp++) = 0xD2;
+    PUTBYTE (0x41); PUTBYTE (0xFF); PUTBYTE (0xD2);
 
     // 6 00000004 4889EC                  	mov rsp, rbp
     //  7 00000007 5D                      	pop rbp
-    *(bin->currentp++) = 0x48;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xEC;
-    *(bin->currentp++) = 0x5D;
-
+    PUTBYTE (0x48); PUTBYTE (0x89); PUTBYTE (0xEC);
+    PUTBYTE (0x5D);
 
     //  2 00000000 50                      	push rax
-    *(bin->currentp++) = 0x50;
+    PUTBYTE (0x50);
 
     // 4 00000003 4C89F8                  	mov rax, r14
-    *(bin->currentp++) = 0x4C;
-    *(bin->currentp++) = 0x89;
-    *(bin->currentp++) = 0xF0;
+    PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xF0);
 
-    bin->size += 27;
+    LabelPushBack (label, bin->size, NEWSHIFT);
+
+    return OK;
+}
+
+int WriteJmp (BinCode *bin, BinCode *softBin, Label *label) {
+    assert (bin);
+    assert (softBin);
 
     softBin->currentp++;
+
+    // 3 00000000 5F                      	pop rdi
+    // 4 00000001 5E                      	pop rsi
+
+    PUTBYTE (0x5F); PUTBYTE (0x5E);
+
+    // 3 00000000 4839FE                  	cmp rsi, rdi
+    
+    PUTBYTE (0x48); PUTBYTE (0x39); PUTBYTE (0xFE);
+    
+    // 4 00000003 74**                    	je label
+    PUTBYTE (0x0F);
+    PUTBYTE (0x84);
+
+    int absShift = *(char *)(softBin->currentp);
+    softBin->currentp += 2;
+
+    int current = bin->currentp - bin->buff - 2;
+
+    int res = CheckIfLblContainsAddr (label, absShift);
+    if (res != -1) {
+
+        PutInt (bin, label->bin[res] - current - 3);
+    }
+    else {
+        // 3 00000000 90                      	nop
+        PUTBYTE (0x90); PUTBYTE (0x90); PUTBYTE (0x90); PUTBYTE (0x90);
+    }
+
+    LabelPushBack (label, bin->size, NEWSHIFT);
 
     return OK;
 }
@@ -533,12 +571,9 @@ int PutLong (BinCode *bin, int *addr) {
 
     unsigned long tmp = (unsigned long)addr;
 
-    printf ("pointer - %p\n", addr);
     for (int i = 0; i < sizeOfLong; i++) {
         *(bin->currentp++) = *((unsigned char *)&tmp + i);
-        printf ("%X ", *((unsigned char *)&tmp + i));
     }
-    printf ("\n");
 
     bin->size += 8;
 
@@ -592,6 +627,8 @@ void PutInt (BinCode *bin, const int value) {
 
         bin->currentp++;
     }
+
+    bin->size += sizeOfInt;
 }
 
 void Out (const int value) {
@@ -600,7 +637,7 @@ void Out (const int value) {
 
 }
 
-int CheckBuffOverflow (BinCode *bin, BinCode *softBin) {
+int CheckBuffOverflow (BinCode *bin, BinCode *softBin, Label *label) {
     assert (bin);
     assert (softBin);
 
@@ -616,11 +653,77 @@ int CheckBuffOverflow (BinCode *bin, BinCode *softBin) {
         bin->capacity *= 2;
     }
 
-    if (*softBin->currentp == '\0') {
-        WriteHlt (bin, softBin);
+    if (softBin->currentp - softBin->buff == softBin->size - 3) {
+        WriteHlt (bin, softBin, label);
 
         return NULLELEMENT;
     }
 
     return OK;
+}
+
+int LabelsInit (Label *label, const int initCap) {
+    assert (label);
+
+    label->capacity = initCap;
+    label->size = 1;
+
+    label->bin = (int *)calloc (initCap, sizeof (int));
+    if (label->bin == nullptr) return ALLOCFAILED;
+
+    label->softBin = (int *)calloc (initCap, sizeof (int));
+    if (label->softBin == nullptr) return ALLOCFAILED;
+
+    label->bin[0]       = 2;
+    label->softBin[0]   = 0;
+
+    return OK;
+}
+
+int LabelsResize (Label *label) {
+    assert (label);
+
+    label->capacity *= 2;
+
+    void *ptr = (void *)label->bin;
+    ptr = realloc (ptr, label->capacity);
+    if (ptr == nullptr) return ALLOCFAILED;
+    label->bin = (int *)ptr;
+
+    ptr = (void *)label->softBin;
+    ptr = realloc (ptr, label->capacity);
+    if (ptr == nullptr) return ALLOCFAILED;
+    label->softBin = (int *)ptr;
+
+    return OK;
+}
+
+int LabelPushBack (Label *label, const int binVal, const int softVal) {
+    assert (label);
+
+    if (label->size >= label->capacity) {
+        LabelsResize (label);
+    }
+
+    label->softBin[label->size] = softVal;
+    label->bin[label->size]     = binVal;
+
+    label->size++;
+
+    return OK;
+}
+
+int CheckIfLblContainsAddr (Label *label, const int value) {
+    assert (label);
+
+    int dest = -1;
+
+    for (int i = 0; i < label->size; i++) {
+        if (label->softBin[i] == value) {
+            dest = i;
+            break;
+        }
+    }
+
+    return dest;
 }

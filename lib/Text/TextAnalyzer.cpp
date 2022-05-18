@@ -43,7 +43,7 @@ int GetFileSize (const char *fileName) {
 
     int numberOfSymbols = 0;
 
-    FILE *txtFile = fopen (fileName, "rb");
+    FILE *txtFile = fopen (fileName, "rb+");
     if (txtFile == 0) return 0;
 
     fseek (txtFile, 0, SEEK_END);

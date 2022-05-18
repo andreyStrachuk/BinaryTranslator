@@ -11,7 +11,20 @@ int main (const int argc, const char *argv[]) {
     BinCode softBinCode {};
     SoftBinCodeInit (&softBinCode, argv[1]);
 
-    BinaryTranslate (&binCode, &softBinCode);
+    Label label {};
+    LabelsInit (&label, softBinCode.capacity);
+
+    printf ("before\n");
+    BinaryTranslate (&binCode, &softBinCode, &label);
+
+    softBinCode.buff -= 2;
+    softBinCode.currentp = softBinCode.buff;
+
+    binCode.currentp = binCode.buff;
+    binCode.size = 0;
+
+    BinaryTranslate (&binCode, &softBinCode, &label);
+    printf ("after bt\n");
 
     int res = mprotect (binCode.buff, binCode.capacity, PROT_EXEC | PROT_WRITE);
     printf ("res - %d\n", res);
@@ -19,7 +32,7 @@ int main (const int argc, const char *argv[]) {
     void (* JIT) (void);
     JIT = (void (*) (void)) (binCode.buff);
 
-    JIT();
+    // JIT();
 
     printf ("I am here!\n");
     // exit (1);
