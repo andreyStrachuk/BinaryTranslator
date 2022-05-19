@@ -26,6 +26,8 @@ struct Label {
 
     int size;
     int capacity;
+
+    char numberOfPass;
 };
 
 int LabelsInit (Label *label, const int initCap);
@@ -38,7 +40,7 @@ int BinCodeInit (BinCode *bin, int cap);
 
 int SoftBinCodeInit (BinCode *softBin, const char *fileName);
 
-int BinaryTranslate (BinCode *bin, BinCode *softBin, Label *label);
+int BinaryTranslate (BinCode *bin, BinCode *softBin, Label *label, int numberOfPass);
 
 int BinCodeDestruct (BinCode *bin);
 
@@ -120,6 +122,11 @@ enum RegsNumbersx86 {
     RCX = 1,
     RDX = 2,
     RBX = 3
+};
+
+enum NumberOfPass {
+    FIRST,
+    SECOND
 };
 
 #endif

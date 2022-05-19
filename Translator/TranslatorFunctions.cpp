@@ -4,6 +4,8 @@ FILE *global = fopen ("testik.asm", "w");
 
 #define NEWSHIFT softBin->currentp - softBin->buff
 
+const int sizeOfJmpAddr = 4;
+
 #define PUTBYTE(arg)    *(bin->currentp++) = arg;   \
                         bin->size++;                \
 
@@ -13,15 +15,19 @@ const char pushVal  = 0x68;
 
 const char backupVal = 25;      // 0 < size < capacity - backupVal
 
+#define LABELPUSHBACK(label, size, NEWSHIFT)            if (label->numberOfPass == FIRST) {             \
+                                                            LabelPushBack (label, size, NEWSHIFT);      \
+                                                        }
+
 
 #define DEF_CMD(name, number, numOfParams, code)        if (typeOfCmd == number) {      \
                                                             code                        \
                                                         }                               \
 
-int BinaryTranslate (BinCode *bin, BinCode *softBin, Label *label) {
+int BinaryTranslate (BinCode *bin, BinCode *softBin, Label *label, int numberOfPass) {
     assert (bin);
 
-    printf ("in tr!\n");
+    label->numberOfPass = numberOfPass;
 
     int res = CheckSignature (softBin);
     if (res != OK) return WRONGSIGNATURE;
@@ -30,7 +36,6 @@ int BinaryTranslate (BinCode *bin, BinCode *softBin, Label *label) {
 
     while (true) {
         res = CheckBuffOverflow (bin, softBin, label);
-        printf ("res - %d\n", res);
         if (res == NULLELEMENT) break;
 
         int typeOfCmd = 0x1F & *(softBin->currentp);
@@ -50,12 +55,12 @@ int BinaryTranslate (BinCode *bin, BinCode *softBin, Label *label) {
     printf ("printing array-----------------------------\n");
 
     for (int i = 0; i < label->size; i++) {
-        printf ("%2d ", label->bin[i]);
+        printf ("%4d ", label->bin[i]);
     }
     printf ("\n");
 
     for (int i = 0; i < label->size; i++) {
-        printf ("%2d ", label->softBin[i]);
+        printf ("%4d ", label->softBin[i]);
     }
     printf ("\n");
 
@@ -153,7 +158,7 @@ int WritePush (BinCode *bin, BinCode *softBin, Label *label) {
 
         PUTBYTE (0x50);
 
-        LabelPushBack (label, bin->size, NEWSHIFT);
+        LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
         return OK;
     }
@@ -184,7 +189,7 @@ int WritePush (BinCode *bin, BinCode *softBin, Label *label) {
 
         PutInt (bin, shift);
 
-        LabelPushBack (label, bin->size, NEWSHIFT);
+        LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
         return OK;
     }
@@ -198,7 +203,7 @@ int WritePush (BinCode *bin, BinCode *softBin, Label *label) {
 
         PUTBYTE (0x50 + regNum);
 
-        LabelPushBack (label, bin->size, NEWSHIFT);
+        LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
         return OK;
     }
@@ -214,7 +219,7 @@ int WritePush (BinCode *bin, BinCode *softBin, Label *label) {
 
         PutInt (bin, (int)value);
 
-        LabelPushBack (label, bin->size, NEWSHIFT);
+        LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
         return OK;
     }
@@ -236,7 +241,7 @@ int WritePop (BinCode *bin, BinCode *softBin, Label *label) {
 
         PUTBYTE (0x58 + regNum);
 
-        LabelPushBack (label, bin->size, NEWSHIFT);
+        LABELPUSHBACK (label, bin->size, NEWSHIFT);
     }
 
     return OK;
@@ -264,7 +269,7 @@ int WriteInc (BinCode *bin, BinCode *softBin, Label *label) {
 
     PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xE8);
 
-    LabelPushBack (label, bin->size, NEWSHIFT);
+    LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
     return OK;
 }
@@ -293,7 +298,7 @@ int WriteDec (BinCode *bin, BinCode *softBin, Label *label) {
 
     PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xE8);
 
-    LabelPushBack (label, bin->size, NEWSHIFT);
+    LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
     printf ("DONE\n");
 
@@ -331,7 +336,7 @@ int WriteAdd (BinCode *bin, BinCode *softBin, Label *label) {
 
     PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xE3);
 
-    LabelPushBack (label, bin->size, NEWSHIFT);
+    LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
     return OK;
 }
@@ -367,7 +372,7 @@ int WriteSub (BinCode *bin, BinCode *softBin, Label *label) {
 
     PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xE3);
 
-    LabelPushBack (label, bin->size, NEWSHIFT);
+    LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
     return OK;
 }
@@ -417,7 +422,7 @@ int WriteOut (BinCode *bin, BinCode *softBin, Label *label) {
     PUTBYTE (0xFF);
     PUTBYTE (0xD2);
 
-    LabelPushBack (label, bin->size, NEWSHIFT);
+    LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
     return OK;
 }
@@ -462,7 +467,7 @@ int WriteRet (BinCode *bin, BinCode *softBin, Label *label) {
 
     PUTBYTE (0xC3);
 
-    LabelPushBack (label, bin->size, NEWSHIFT);
+    LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
     return OK;
 }
@@ -476,7 +481,7 @@ int WriteHlt (BinCode *bin, BinCode *softBin, Label *label) {
 
     PUTBYTE (0xC3);
 
-    LabelPushBack (label, bin->size, NEWSHIFT);
+    LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
     return OK;
 }
@@ -519,7 +524,7 @@ int WriteIn (BinCode *bin, BinCode *softBin, Label *label) {
     // 4 00000003 4C89F8                  	mov rax, r14
     PUTBYTE (0x4C); PUTBYTE (0x89); PUTBYTE (0xF0);
 
-    LabelPushBack (label, bin->size, NEWSHIFT);
+    LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
     return OK;
 }
@@ -546,19 +551,26 @@ int WriteJmp (BinCode *bin, BinCode *softBin, Label *label) {
     int absShift = *(char *)(softBin->currentp);
     softBin->currentp += 2;
 
-    int current = bin->currentp - bin->buff - 2;
+    int current = bin->currentp - bin->buff;
 
     int res = CheckIfLblContainsAddr (label, absShift);
-    if (res != -1) {
 
-        PutInt (bin, label->bin[res] - current - 3);
+    int relShiftBin = label->bin[res] - current;
+
+    if (res != -1) {
+        if (relShiftBin < 0) {
+            PutInt (bin, label->bin[res] - current - 3);
+        }
+        else {
+            PutInt (bin, label->bin[res] - current - sizeOfJmpAddr);
+        }
     }
     else {
         // 3 00000000 90                      	nop
         PUTBYTE (0x90); PUTBYTE (0x90); PUTBYTE (0x90); PUTBYTE (0x90);
     }
 
-    LabelPushBack (label, bin->size, NEWSHIFT);
+    LABELPUSHBACK (label, bin->size, NEWSHIFT);
 
     return OK;
 }
@@ -701,14 +713,16 @@ int LabelsResize (Label *label) {
 int LabelPushBack (Label *label, const int binVal, const int softVal) {
     assert (label);
 
-    if (label->size >= label->capacity) {
-        LabelsResize (label);
+    if (label->numberOfPass == FIRST) {
+        if (label->size >= label->capacity) {
+            LabelsResize (label);
+        }
+
+        label->softBin[label->size] = softVal;
+        label->bin[label->size]     = binVal;
+
+        label->size++;
     }
-
-    label->softBin[label->size] = softVal;
-    label->bin[label->size]     = binVal;
-
-    label->size++;
 
     return OK;
 }
@@ -726,4 +740,16 @@ int CheckIfLblContainsAddr (Label *label, const int value) {
     }
 
     return dest;
+}
+
+int ModifyBinTo2ndPass (BinCode *bin, BinCode *softBin) {
+    assert (softBin);
+
+    softBin->buff -= 2;
+    softBin->currentp = softBin->buff;
+
+    bin->currentp = bin->buff;
+    bin->size = 0;
+
+    return OK;
 }
