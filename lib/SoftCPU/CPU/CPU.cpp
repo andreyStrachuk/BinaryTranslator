@@ -28,7 +28,9 @@ int main (const int argc, const char **argv) {
     int numberOfReadSym = fread (softCPU.machineCode, sizeof (char), fileSize, code);
     ASSERT_OKAY (numberOfReadSym == 0, PrintErrors (UNABLETOREADFROMFILE));
 
-    RunProccessor (&softCPU);
+    for (int i = 0; i < 100000; i++) {
+        RunProccessor (&softCPU);
+    }
 
     DestructStack (softCPU.st);
     DestructStack (softCPU.call);

@@ -48,7 +48,32 @@ DEF_CMD (in, 0x07, 0,
     WriteIn (bin, softBin, label);
 })
 
-DEF_CMD (jmp, 0x0D, 2,
+DEF_CMD (je, 0x0D, 2,
 {
     WriteJmp (bin, softBin, label);
+})
+
+DEF_CMD (jb, 0x14, 2,
+{
+    WriteJl (bin, softBin, label);
+})
+
+DEF_CMD (call, 0x12, 2,
+{
+    WriteCall (bin, softBin, label);
+})
+
+DEF_CMD (mul, 0x04, 0,
+{
+    WriteMul (bin, softBin, label);
+})
+
+DEF_CMD (div, 0x09, 0,
+{
+    WriteDiv (bin, softBin, label);
+})
+
+DEF_CMD(sqrt, 0x08, 0, 
+{
+    WriteSqrt (bin, softBin, label);
 })

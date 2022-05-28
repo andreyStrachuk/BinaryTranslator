@@ -1,17 +1,15 @@
-in
-pop ax
-push 1
-pop bx
+push 5
 
-: smth
+call : proc
 
-in
-in
-
-je : smth
-
-push 500
-push 345
+push 75
 out
 
 hlt
+
+: proc
+
+    push 5
+    out
+
+    ret

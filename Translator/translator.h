@@ -7,10 +7,26 @@
 #include <errno.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <math.h>
 
 #define LABELSNUMBER 20
 
 #include "../lib/Text/TextAnalyze.h"
+
+
+#define SAVEREGS        asm("push %rbx\n"    \
+                            "push %r12\n"    \
+                            "push %r13\n"    \
+                            "push %r14\n"    \
+                            "push %r15\n");  \
+
+
+#define RESTOREREGS         asm("pop %r15\n\t"   \
+                                "pop %r14\n\t"   \
+                                "pop %r13\n\t"   \
+                                "pop %r12\n\t"   \
+                                "pop %rbx\n\t"); \
+
 
 struct BinCode {
     unsigned char *buff;
@@ -82,13 +98,9 @@ int WriteOut (BinCode *bin, BinCode *softBin, Label *label);
 
 void Out (const int value);
 
-int WriteAddrOutFunc (BinCode *bin);
-
 int WriteIn (BinCode *bin, BinCode *softBin, Label *label);
 
 int PutLong (BinCode *bin, int *addr);
-
-int WriteAddrInFunc (BinCode *bin);
 
 int In ();
 
@@ -97,6 +109,24 @@ int WriteSub (BinCode *bin, BinCode *softBin, Label *label);
 int LabelPushBack (Label *label, const int binVal, const int softVal);
 
 int CheckIfLblContainsAddr (Label *label, const int value);
+
+int WriteCall (BinCode *bin, BinCode *softBin, Label *label);
+
+int WriteMul (BinCode *bin, BinCode *softBin, Label *label);
+
+int WriteDiv (BinCode *bin, BinCode *softBin, Label *label);
+
+int WriteSqrt (BinCode *bin, BinCode *softBin, Label *label);
+
+int WriteJl (BinCode *bin, BinCode *softBin, Label *label);
+
+int WriteFuncAddr (BinCode *bin, void *pointer);
+
+int ModifyBinTo2ndPass (BinCode *bin, BinCode *softBin);
+
+int Sqrt (const int val);
+
+int LabelsDestruct (Label *label);
 
 enum TypeOfCommand {
     PUSH = 1,

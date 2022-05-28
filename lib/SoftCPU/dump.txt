@@ -1,10 +1,10 @@
 Stack is empty: nothing to pop!
 Error code: 7
 
-Stack  <d>  [0x55ce2ec05ed0]  "st"  DATA PopStack(Stack*)  at  lib/stack.cpp(85)
+Stack  <d>  [0x559847041ed0]  "st"  DATA PopStack(Stack*)  at  lib/stack.cpp(85)
     size = 0
     capacity = 100
-    data[0x55ce2ec062a8]
+    data[0x5598470422a8]
     hash = 0xff2b3f10
 Dump succeed!
 

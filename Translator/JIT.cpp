@@ -1,12 +1,12 @@
 #include "translator.h"
 
-static int cap = 200;
+static int gIntialCapacity = 1000;
 
 int main (const int argc, const char *argv[]) {
     if (argc < 2) { PrintErrors (WRONGNUMBEROFPARAMETERS); return 1; }
 
     BinCode binCode {};
-    BinCodeInit (&binCode, cap);
+    BinCodeInit (&binCode, gIntialCapacity);
 
     BinCode softBinCode {};
     SoftBinCodeInit (&softBinCode, argv[1]);
@@ -14,28 +14,24 @@ int main (const int argc, const char *argv[]) {
     Label label {};
     LabelsInit (&label, softBinCode.capacity);
 
-    printf ("before\n");
-    BinaryTranslate (&binCode, &softBinCode, &label, FIRST);
+    int res = BinaryTranslate (&binCode, &softBinCode, &label, FIRST);
+    if (res != OK) return res;
 
-    softBinCode.buff -= 2;
-    softBinCode.currentp = softBinCode.buff;
+    res = BinaryTranslate (&binCode, &softBinCode, &label, SECOND);
+    if (res != OK) return res;
 
-    binCode.currentp = binCode.buff;
-    binCode.size = 0;
+    res = mprotect (binCode.buff, binCode.capacity, PROT_EXEC | PROT_WRITE);
+    if (res != 0) { printf ("Your memory is not aligned by 4096!\n"); return res; }
 
-    BinaryTranslate (&binCode, &softBinCode, &label, SECOND);
-    printf ("after bt\n");
+    void (* JIT) (void) = (void (*) (void)) (binCode.buff);
 
-    int res = mprotect (binCode.buff, binCode.capacity, PROT_EXEC | PROT_WRITE);
-    printf ("res - %d\n", res);
-
-    void (* JIT) (void);
-    JIT = (void (*) (void)) (binCode.buff);
-
-    JIT();
-
-    printf ("I am here!\n");
-    // exit (1);
+    SAVEREGS
+    JIT ();
+    RESTOREREGS
+    
+    BinCodeDestruct (&binCode);
+    BinCodeDestruct (&softBinCode);
+    LabelsDestruct (&label);
 
     return 0;
 }

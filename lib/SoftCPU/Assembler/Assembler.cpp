@@ -12,7 +12,7 @@ int main (const int argc, const char **argv) {
     int labelIp = 0; 
     int result = 0;
 
-    char *asmProg = (char *)calloc (fileSize + 1, sizeof (char)); 
+    char *asmProg = (char *)calloc (fileSize + 1, sizeof (char));
     ASSERT_OKAY(asmProg == nullptr, PrintErrors (NULLPTR));
 
     fileSize = fread (asmProg, sizeof (char), fileSize, asmProgFile);

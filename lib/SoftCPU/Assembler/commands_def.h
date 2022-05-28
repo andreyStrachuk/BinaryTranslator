@@ -77,7 +77,7 @@ DEF_CMD_(sqrt, 0x08, 0,
     PUSHSTACK();
 }, ; )
 
-DEF_CMD_(div, 0x09, 0, 
+DEF_CMD_(div, 0x09, 0,
 {
     topVal = POPSTACK();
     prevTopVal = POPSTACK();
@@ -121,13 +121,10 @@ DEF_CMD_(je, 0x0D, 2,
     topVal = POPSTACK();
     prevTopVal = POPSTACK();
 
-    if (fabs(topVal - prevTopVal) < 1e-6) {
+    if (fabs(topVal - prevTopVal) < 1e-3) {
         int index = softCPU->ip;
         softCPU->ip = *(u_int16_t *)(softCPU->machineCode + index);
 
-        int retVal = index + 2;
-
-        PUSHCALLSTACK();
         continue;
     }
     SKIPJMPVAL();
